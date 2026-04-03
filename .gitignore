@@ -1,0 +1,49 @@
+# ── Environnement Python ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── Outils de dev ─────────────────────────────────────────────────────────────
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# ── PyInstaller ───────────────────────────────────────────────────────────────
+*.spec
+# Décommente si tu veux versionner le .spec :
+# !pypost.spec
+dist/
+build/
+
+# ── Données utilisateur (optionnel — à adapter) ───────────────────────────────
+# Ignore tout le data/ pour ne pas committer tokens/URLs perso
+data/history.json
+data/environments/
+# Garde les collections si tu veux les versionner :
+# data/collections/
+
+# ── Environnement & secrets ───────────────────────────────────────────────────
+.env
+.env.*
+*.env
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
