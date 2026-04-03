@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PyPost — Client HTTP Local</title>
+  <meta name="description" content="Client HTTP desktop local, open-source, sans compte." />
+
+  <!-- Tailwind CSS v4 CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            base:    { DEFAULT: '#0f1117', 50: '#1a1d27', 100: '#13151e' },
+            surface: { DEFAULT: '#1e2130', hover: '#252840' },
+            border:  { DEFAULT: '#2e3248' },
+            accent:  { DEFAULT: '#6c8cff', hover: '#849aff' },
+            get:     '#22c55e',
+            post:    '#f97316',
+            put:     '#eab308',
+            patch:   '#a78bfa',
+            delete:  '#ef4444',
+            head:    '#06b6d4',
+            options: '#ec4899',
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0f1117; color: #e2e8f0; }
+    code, pre { font-family: 'JetBrains Mono', monospace; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #13151e; }
+    ::-webkit-scrollbar-thumb { background: #2e3248; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #6c8cff; }
+
+    /* Sidebar resize handle */
+    #resize-handle { cursor: col-resize; user-select: none; }
+    #resize-handle:hover, #resize-handle.dragging { background: #6c8cff; }
+
+    /* Method badge */
+    .badge-GET     { color: #22c55e; }
+    .badge-POST    { color: #f97316; }
+    .badge-PUT     { color: #eab308; }
+    .badge-PATCH   { color: #a78bfa; }
+    .badge-DELETE  { color: #ef4444; }
+    .badge-HEAD    { color: #06b6d4; }
+    .badge-OPTIONS { color: #ec4899; }
+
+    /* Tab active */
+    .tab-active { border-bottom: 2px solid #6c8cff; color: #6c8cff; }
+
+    /* Transition */
+    .fade-in { animation: fadeIn .15s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+
+<body class="h-screen flex flex-col overflow-hidden bg-[#0f1117] text-slate-200" x-data="pypost()" x-init="init()">
+
+  <!-- ── TOP BAR ─────────────────────────────────────────────────────────── -->
+  <header class="flex items-center gap-2 px-3 bg-[#13151e] border-b border-[#2e3248] h-10 shrink-0 select-none">
+
+    <!-- Logo -->
+    <span class="text-[#6c8cff] font-bold tracking-tight text-sm mr-2">⚡ PyPost</span>
+
+    <!-- Tabs -->
+    <div class="flex items-center gap-1 overflow-x-auto flex-1 min-w-0" id="tab-bar">
+      <template x-for="(tab, i) in tabs" :key="tab.id">
+        <button
+          :id="'tab-' + tab.id"
+          @click="activeTab = i"
+          :class="activeTab === i ? 'bg-[#1e2130] text-slate-100 border-t border-[#6c8cff]' : 'text-slate-400 hover:text-slate-200 hover:bg-[#1a1d27]'"
+          class="flex items-center gap-1.5 px-3 py-1 text-xs rounded-t transition-colors whitespace-nowrap border border-transparent border-b-0"
+        >
+          <span :class="'badge-' + tab.method" class="font-semibold text-[10px]" x-text="tab.method"></span>
+          <span x-text="tab.name || 'Sans titre'"></span>
+          <span x-show="tab.dirty" class="text-[#6c8cff] text-[10px]">●</span>
+          <span @click.stop="closeTab(i)" class="ml-1 text-slate-500 hover:text-red-400 transition-colors">✕</span>
+        </button>
+      </template>
+      <button @click="newTab()" id="btn-new-tab" class="ml-1 px-2 py-1 text-slate-400 hover:text-[#6c8cff] text-sm transition-colors" title="Nouvel onglet">＋</button>
+    </div>
+
+    <!-- Right actions -->
+    <div class="flex items-center gap-2 ml-auto shrink-0">
+      <!-- Environment selector -->
+      <select id="env-selector" x-model="activeEnv" class="bg-[#1e2130] border border-[#2e3248] text-slate-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-[#6c8cff]">
+        <option value="">Aucun environnement</option>
+        <template x-for="env in environments" :key="env.id">
+          <option :value="env.id" x-text="env.name"></option>
+        </template>
+      </select>
+      <button id="btn-settings" class="p-1 text-slate-400 hover:text-slate-200 transition-colors" title="Paramètres">⚙️</button>
+    </div>
+  </header>
+
+  <!-- ── MAIN LAYOUT ──────────────────────────────────────────────────────── -->
+  <div class="flex flex-1 min-h-0 overflow-hidden">
+
+    <!-- ── SIDEBAR ─────────────────────────────────────────────────────────── -->
+    <aside id="sidebar" class="flex flex-col bg-[#13151e] border-r border-[#2e3248] shrink-0 overflow-hidden" style="width: 240px; min-width: 160px; max-width: 400px;">
+
+      <!-- Sidebar tabs -->
+      <div class="flex border-b border-[#2e3248] text-xs">
+        <button @click="sidebarTab='collections'" :class="sidebarTab==='collections' ? 'tab-active' : 'text-slate-400'" class="flex-1 py-2 font-medium transition-colors" id="sidebar-tab-collections">Collections</button>
+        <button @click="sidebarTab='history'" :class="sidebarTab==='history' ? 'tab-active' : 'text-slate-400'" class="flex-1 py-2 font-medium transition-colors" id="sidebar-tab-history">Historique</button>
+      </div>
+
+      <!-- Collections -->
+      <div x-show="sidebarTab === 'collections'" class="flex flex-col flex-1 min-h-0">
+        <div class="p-2 border-b border-[#2e3248]">
+          <input id="search-collections" type="text" placeholder="Rechercher…" class="w-full bg-[#1e2130] border border-[#2e3248] rounded px-2 py-1 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-[#6c8cff]" />
+        </div>
+        <div class="flex-1 overflow-y-auto p-2 space-y-1">
+          <template x-if="collections.length === 0">
+            <div class="text-center text-slate-500 text-xs py-8">
+              <div class="text-2xl mb-2">📁</div>
+              Aucune collection
+            </div>
+          </template>
+          <template x-for="col in collections" :key="col.id">
+            <div class="rounded overflow-hidden">
+              <button @click="col.open = !col.open" class="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-slate-300 hover:bg-[#1e2130] rounded transition-colors">
+                <span x-text="col.open ? '▾' : '▸'" class="text-slate-500 w-3"></span>
+                <span>📁</span>
+                <span class="truncate" x-text="col.name"></span>
+              </button>
+              <div x-show="col.open" class="pl-4">
+                <template x-for="req in col.requests" :key="req.id">
+                  <button @click="openRequest(req)" class="w-full flex items-center gap-1.5 px-2 py-1 text-xs hover:bg-[#1e2130] rounded transition-colors">
+                    <span :class="'badge-' + req.method" class="font-bold w-12 text-right text-[10px]" x-text="req.method"></span>
+                    <span class="truncate text-slate-300" x-text="req.name"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+        <div class="p-2 border-t border-[#2e3248]">
+          <button id="btn-new-collection" class="w-full py-1.5 text-xs bg-[#6c8cff]/10 hover:bg-[#6c8cff]/20 text-[#6c8cff] rounded border border-[#6c8cff]/30 transition-colors">＋ Nouvelle collection</button>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div x-show="sidebarTab === 'history'" class="flex flex-col flex-1 min-h-0">
+        <div class="flex-1 overflow-y-auto p-2 space-y-1">
+          <template x-if="history.length === 0">
+            <div class="text-center text-slate-500 text-xs py-8">
+              <div class="text-2xl mb-2">🕐</div>
+              Aucun historique
+            </div>
+          </template>
+          <template x-for="entry in history" :key="entry.id">
+            <button @click="loadFromHistory(entry)" class="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs hover:bg-[#1e2130] rounded transition-colors text-left">
+              <span :class="'badge-' + entry.method" class="font-bold w-12 text-right text-[10px]" x-text="entry.method"></span>
+              <span class="truncate text-slate-300 flex-1" x-text="entry.url"></span>
+              <span :class="entry.status >= 400 ? 'text-red-400' : 'text-green-400'" class="text-[10px]" x-text="entry.status"></span>
+            </button>
+          </template>
+        </div>
+        <div class="p-2 border-t border-[#2e3248]">
+          <button @click="history = []" id="btn-clear-history" class="w-full py-1.5 text-xs text-slate-400 hover:text-red-400 rounded transition-colors">🗑 Vider l'historique</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Resize handle -->
+    <div id="resize-handle" class="w-1 bg-[#2e3248] hover:bg-[#6c8cff] transition-colors shrink-0" @mousedown="startResize($event)"></div>
+
+    <!-- ── CENTER : REQUEST + RESPONSE ─────────────────────────────────────── -->
+    <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+
+      <!-- URL Bar -->
+      <div class="flex items-center gap-2 px-3 py-2 border-b border-[#2e3248] bg-[#13151e] shrink-0">
+        <select id="method-select" x-model="currentTab.method" :class="'badge-' + currentTab.method" class="bg-[#1e2130] border border-[#2e3248] rounded px-2 py-1.5 text-xs font-bold focus:outline-none focus:border-[#6c8cff] w-24">
+          <option value="GET">GET</option>
+          <option value="POST">POST</option>
+          <option value="PUT">PUT</option>
+          <option value="PATCH">PATCH</option>
+          <option value="DELETE">DELETE</option>
+          <option value="HEAD">HEAD</option>
+          <option value="OPTIONS">OPTIONS</option>
+        </select>
+
+        <input
+          id="url-input"
+          type="text"
+          x-model="currentTab.url"
+          @input="currentTab.dirty = true"
+          placeholder="https://api.example.com/{{path}}"
+          class="flex-1 bg-[#1e2130] border border-[#2e3248] rounded px-3 py-1.5 text-sm font-mono text-slate-200 placeholder-slate-500 focus:outline-none focus:border-[#6c8cff] transition-colors"
+        />
+
+        <button
+          id="btn-send"
+          @click="sendRequest()"
+          :disabled="loading"
+          class="px-4 py-1.5 bg-[#6c8cff] hover:bg-[#849aff] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded transition-colors flex items-center gap-2"
+        >
+          <span x-show="loading" class="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+          <span x-text="loading ? 'Envoi…' : 'Envoyer'"></span>
+        </button>
+      </div>
+
+      <!-- Request tabs + Response split -->
+      <div class="flex flex-col flex-1 min-h-0">
+
+        <!-- Request params tabs -->
+        <div class="flex border-b border-[#2e3248] bg-[#13151e] text-xs shrink-0">
+          <template x-for="t in ['Params', 'Headers', 'Body', 'Auth', 'Scripts', 'Tests']" :key="t">
+            <button
+              :id="'req-tab-' + t.toLowerCase()"
+              @click="requestTab = t"
+              :class="requestTab === t ? 'tab-active' : 'text-slate-400 hover:text-slate-200'"
+              class="px-4 py-2 font-medium transition-colors"
+              x-text="t"
+            ></button>
+          </template>
+        </div>
+
+        <!-- Request panel content -->
+        <div class="bg-[#1e2130] shrink-0 overflow-auto" style="height: 200px;">
+
+          <!-- Params -->
+          <div x-show="requestTab === 'Params'" class="p-3 fade-in">
+            <table class="w-full text-xs">
+              <thead><tr class="text-slate-500 border-b border-[#2e3248]">
+                <th class="text-left py-1 w-6"></th>
+                <th class="text-left py-1">Clé</th>
+                <th class="text-left py-1">Valeur</th>
+                <th class="w-6"></th>
+              </tr></thead>
+              <tbody>
+                <template x-for="(p, i) in currentTab.params" :key="i">
+                  <tr class="border-b border-[#2e3248]/50 hover:bg-[#252840]">
+                    <td class="py-1"><input type="checkbox" x-model="p.enabled" class="accent-[#6c8cff]"/></td>
+                    <td class="py-1 pr-2"><input type="text" x-model="p.key" placeholder="clé" class="bg-transparent w-full focus:outline-none text-slate-300 font-mono"/></td>
+                    <td class="py-1 pr-2"><input type="text" x-model="p.value" placeholder="valeur" class="bg-transparent w-full focus:outline-none text-slate-300 font-mono"/></td>
+                    <td><button @click="currentTab.params.splice(i,1)" class="text-slate-500 hover:text-red-400">✕</button></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <button @click="currentTab.params.push({key:'',value:'',enabled:true})" class="mt-2 text-xs text-[#6c8cff] hover:underline">＋ Ajouter un paramètre</button>
+          </div>
+
+          <!-- Headers -->
+          <div x-show="requestTab === 'Headers'" class="p-3 fade-in">
+            <table class="w-full text-xs">
+              <thead><tr class="text-slate-500 border-b border-[#2e3248]">
+                <th class="text-left py-1 w-6"></th>
+                <th class="text-left py-1">Header</th>
+                <th class="text-left py-1">Valeur</th>
+                <th class="w-6"></th>
+              </tr></thead>
+              <tbody>
+                <template x-for="(h, i) in currentTab.headers" :key="i">
+                  <tr class="border-b border-[#2e3248]/50 hover:bg-[#252840]">
+                    <td class="py-1"><input type="checkbox" x-model="h.enabled" class="accent-[#6c8cff]"/></td>
+                    <td class="py-1 pr-2"><input type="text" x-model="h.key" placeholder="Content-Type" class="bg-transparent w-full focus:outline-none text-slate-300 font-mono"/></td>
+                    <td class="py-1 pr-2"><input type="text" x-model="h.value" placeholder="application/json" class="bg-transparent w-full focus:outline-none text-slate-300 font-mono"/></td>
+                    <td><button @click="currentTab.headers.splice(i,1)" class="text-slate-500 hover:text-red-400">✕</button></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <button @click="currentTab.headers.push({key:'',value:'',enabled:true})" class="mt-2 text-xs text-[#6c8cff] hover:underline">＋ Ajouter un header</button>
+          </div>
+
+          <!-- Body -->
+          <div x-show="requestTab === 'Body'" class="p-3 fade-in flex flex-col gap-2">
+            <div class="flex gap-2 text-xs">
+              <template x-for="bt in ['none','raw JSON','form-data','urlencoded']" :key="bt">
+                <label class="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" :value="bt" x-model="currentTab.bodyType" class="accent-[#6c8cff]"/>
+                  <span x-text="bt" class="text-slate-300"></span>
+                </label>
+              </template>
+            </div>
+            <textarea
+              x-show="currentTab.bodyType === 'raw JSON'"
+              x-model="currentTab.body"
+              placeholder='{"key": "value"}'
+              class="flex-1 bg-[#13151e] border border-[#2e3248] rounded p-2 text-xs font-mono text-slate-300 focus:outline-none focus:border-[#6c8cff] resize-none"
+              rows="5"
+            ></textarea>
+            <div x-show="currentTab.bodyType === 'none'" class="text-slate-500 text-xs">Aucun body envoyé.</div>
+          </div>
+
+          <!-- Auth -->
+          <div x-show="requestTab === 'Auth'" class="p-3 fade-in">
+            <div class="flex gap-3 items-center mb-3">
+              <label class="text-xs text-slate-400">Type :</label>
+              <select x-model="currentTab.authType" id="auth-type-select" class="bg-[#1e2130] border border-[#2e3248] rounded px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-[#6c8cff]">
+                <option value="none">Aucune</option>
+                <option value="bearer">Bearer Token</option>
+                <option value="basic">Basic Auth</option>
+                <option value="apikey">API Key</option>
+              </select>
+            </div>
+            <div x-show="currentTab.authType === 'bearer'" class="fade-in">
+              <input type="text" x-model="currentTab.authToken" placeholder="Bearer token…" class="w-full bg-[#13151e] border border-[#2e3248] rounded px-3 py-1.5 text-xs font-mono text-slate-300 focus:outline-none focus:border-[#6c8cff]"/>
+            </div>
+            <div x-show="currentTab.authType === 'basic'" class="flex gap-2 fade-in">
+              <input type="text" x-model="currentTab.authUser" placeholder="Username" class="flex-1 bg-[#13151e] border border-[#2e3248] rounded px-3 py-1.5 text-xs font-mono text-slate-300 focus:outline-none focus:border-[#6c8cff]"/>
+              <input type="password" x-model="currentTab.authPass" placeholder="Password" class="flex-1 bg-[#13151e] border border-[#2e3248] rounded px-3 py-1.5 text-xs font-mono text-slate-300 focus:outline-none focus:border-[#6c8cff]"/>
+            </div>
+          </div>
+
+          <!-- Scripts / Tests placeholder -->
+          <div x-show="requestTab === 'Scripts' || requestTab === 'Tests'" class="p-4 text-slate-500 text-xs fade-in">🚧 Disponible en Phase 3.</div>
+
+        </div>
+
+        <!-- ── RESPONSE VIEWER ──────────────────────────────────────────────── -->
+        <div class="flex flex-col flex-1 min-h-0 border-t border-[#2e3248]">
+
+          <!-- Response header bar -->
+          <div class="flex items-center gap-3 px-3 py-2 bg-[#13151e] border-b border-[#2e3248] shrink-0 text-xs">
+            <template x-if="response">
+              <div class="flex items-center gap-3 fade-in">
+                <span
+                  :class="response.status >= 500 ? 'bg-red-500/20 text-red-400 border-red-500/40' : response.status >= 400 ? 'bg-orange-500/20 text-orange-400 border-orange-500/40' : response.status >= 300 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40' : 'bg-green-500/20 text-green-400 border-green-500/40'"
+                  class="px-2 py-0.5 rounded border font-mono font-bold"
+                  x-text="response.status + ' ' + response.status_text"
+                ></span>
+                <span class="text-slate-400" x-text="response.time_ms + ' ms'"></span>
+                <span class="text-slate-400" x-text="formatBytes(response.size_bytes)"></span>
+              </div>
+            </template>
+            <template x-if="!response && !loading">
+              <span class="text-slate-500">Envoie une requête pour voir la réponse.</span>
+            </template>
+            <template x-if="loading">
+              <span class="text-slate-400 flex items-center gap-1.5">
+                <span class="inline-block w-3 h-3 border-2 border-slate-500/30 border-t-[#6c8cff] rounded-full animate-spin"></span>
+                Envoi en cours…
+              </span>
+            </template>
+
+            <!-- Response sub-tabs (right) -->
+            <div class="ml-auto flex gap-1" x-show="response">
+              <template x-for="t in ['Body', 'Headers', 'Info']" :key="t">
+                <button
+                  :id="'res-tab-' + t.toLowerCase()"
+                  @click="responseTab = t"
+                  :class="responseTab === t ? 'tab-active' : 'text-slate-400 hover:text-slate-200'"
+                  class="px-3 py-1 font-medium transition-colors"
+                  x-text="t"
+                ></button>
+              </template>
+              <button @click="copyBody()" id="btn-copy-body" class="ml-2 px-2 py-1 text-slate-400 hover:text-slate-200 transition-colors" title="Copier le body">📋</button>
+            </div>
+          </div>
+
+          <!-- Response body -->
+          <div class="flex-1 overflow-auto bg-[#13151e] p-3 text-xs font-mono">
+            <template x-if="response && responseTab === 'Body'">
+              <pre class="fade-in"><code id="response-body" x-text="prettyBody(response.body)"></code></pre>
+            </template>
+            <template x-if="response && responseTab === 'Headers'">
+              <div class="fade-in space-y-1">
+                <template x-for="[k,v] in Object.entries(response.headers || {})" :key="k">
+                  <div class="flex gap-2">
+                    <span class="text-[#6c8cff] font-medium w-48 shrink-0" x-text="k"></span>
+                    <span class="text-slate-300" x-text="v"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <template x-if="response && responseTab === 'Info'">
+              <div class="fade-in space-y-2 text-slate-300">
+                <div><span class="text-slate-500">URL : </span><span x-text="response.url || currentTab.url"></span></div>
+                <div><span class="text-slate-500">Méthode : </span><span x-text="currentTab.method"></span></div>
+                <div><span class="text-slate-500">Date : </span><span x-text="response.timestamp"></span></div>
+              </div>
+            </template>
+            <template x-if="error">
+              <div class="fade-in text-red-400">
+                <div class="font-bold mb-1">⚠ Erreur réseau</div>
+                <div x-text="error"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STATUS BAR ───────────────────────────────────────────────────────── -->
+  <footer class="flex items-center justify-between px-3 py-0.5 bg-[#6c8cff] text-white text-[10px] shrink-0 select-none">
+    <span>PyPost v0.1.0-dev</span>
+    <span x-text="activeEnv ? '🌍 ' + (environments.find(e=>e.id===activeEnv)?.name || '') : '⚪ Aucun environnement'"></span>
+  </footer>
+
+  <!-- Alpine.js app logic -->
+  <script src="/js/app.js"></script>
+</body>
+</html>

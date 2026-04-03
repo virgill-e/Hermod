@@ -360,7 +360,7 @@ Objectif : parité avec les fonctionnalités fréquentes de Postman.
 - [x] Initialiser le repo Git avec `.gitignore` Python
 - [x] Créer l'environnement virtuel (`python -m venv .venv`)
 - [x] Installer les dépendances : `flask httpx pywebview pyinstaller`
-- [ ] Créer `main.py` avec lancement Flask (thread daemon) + pywebview
+- [x] Créer `main.py` avec lancement Flask (thread daemon) + pywebview
 - [ ] Créer `api/__init__.py` avec factory `create_app()`
 - [ ] Créer `core/storage.py` : fonctions CRUD JSON génériques
 - [ ] Créer `data/` avec fichiers JSON initiaux vides
