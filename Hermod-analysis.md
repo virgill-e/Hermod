@@ -361,11 +361,11 @@ Objectif : parité avec les fonctionnalités fréquentes de Postman.
 - [x] Créer l'environnement virtuel (`python -m venv .venv`)
 - [x] Installer les dépendances : `flask httpx pywebview pyinstaller`
 - [x] Créer `main.py` avec lancement Flask (thread daemon) + pywebview
-- [ ] Créer `api/__init__.py` avec factory `create_app()`
-- [ ] Créer `core/storage.py` : fonctions CRUD JSON génériques
-- [ ] Créer `data/` avec fichiers JSON initiaux vides
-- [ ] Servir le dossier `ui/` comme dossier statique Flask
-- [ ] Configurer le hot-reload en mode développement (FLASK_ENV=development)
+- [x] Créer `api/__init__.py` avec factory `create_app()`
+- [x] Créer `core/storage.py` : fonctions CRUD JSON génériques
+- [x] Créer `data/` avec fichiers JSON initiaux vides
+- [x] Servir le dossier `ui/` comme dossier statique Flask
+- [x] Configurer le hot-reload en mode développement (FLASK_ENV=development)
 
 ### 🔌 Backend — Requêtes HTTP
 

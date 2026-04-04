@@ -3,6 +3,7 @@ PyPost — Point d'entrée principal
 Lance Flask dans un thread daemon puis ouvre la fenêtre pywebview.
 """
 
+import os
 import threading
 import time
 import logging
@@ -49,6 +50,10 @@ def wait_for_flask(timeout: float = 10.0) -> bool:
 
 
 def main() -> None:
+    is_dev = os.environ.get("FLASK_ENV") == "development"
+    if is_dev:
+        log.info("Mode développement activé (outils de dev pywebview activés)")
+
     flask_app = create_app()
 
     # Lance Flask dans un thread daemon (s'arrête automatiquement avec le process)
@@ -72,7 +77,7 @@ def main() -> None:
     )
 
     # gui=None → pywebview choisit le meilleur backend natif (WKWebView sur macOS)
-    webview.start(debug=False)
+    webview.start(debug=is_dev)
 
     log.info("Fenêtre fermée. Fin du programme.")
 
